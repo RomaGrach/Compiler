@@ -1,0 +1,23 @@
+print "Enter number of rows:";      
+input r ;                            
+
+print "Enter number of columns:";   
+input c12 ;                           
+
+print "Drawing rectangle:\n";         
+
+while r > 0 :
+{
+    col = c12;                        
+
+    while col > 0 :
+    {
+        print "*";                  
+        col = col - 1;              
+    };
+
+    print "\n";                     
+    r = r - 1;                      
+};
+
+print "Finished!";                  
