@@ -1,43 +1,43 @@
-def multi_split(s, seps):
-    parts = []
-    curr = ""
-    for ch in s:
-        if ch in seps:
+def multi_split(s, seps):  # разбивает строку s по списку разделителей seps
+    parts = []  # список для хранения частей
+    curr = ""  # текущий токен
+    for ch in s:  # перебираем каждый символ в s
+        if ch in seps:  # если символ — один из разделителей
             # при встрече разделителя — дорисованный токен, если не пустой
-            if curr.strip():
-                parts.append(curr.strip())
-            curr = ""
+            if curr.strip():  # если текущий токен после .strip() не пуст
+                parts.append(curr.strip())  # добавляем токен в parts
+            curr = ""  # сбрасываем токен
         else:
-            curr += ch
+            curr += ch  # иначе накапливаем символ в curr
     # плюс последний кусок, если есть
-    if curr.strip():
-        parts.append(curr.strip())
-    return parts
+    if curr.strip():  # если после цикла в curr что-то осталось
+        parts.append(curr.strip())  # добавляем последний токен
+    return parts  # возвращаем список частей
 
 
 
-with open("work/test6.bnb","r") as f:
-    cod = f.read() 
+with open("work/test7.bnb","r") as f:  # открываем исходный файл
+    cod = f.read()  # читаем весь текст в cod
 # cod = cod[0:len(cod)-1]
-c = cod.replace("\n", "").replace("\t", "")
-firstSplit = multi_split(c, [';', '{'])
-print(firstSplit)
+c = cod.replace("\n", "").replace("\t", "")  # удаляем переводы строк и табы
+firstSplit = multi_split(c, [';', '{'])  # разбиваем на команды по ‘;’ и ‘{’
+print(firstSplit)  # выводим список команд
 
-spec = ['-', '+', '=', '/', '*', '<', '>', '%', '&', '|', ' ', '(', ')', '#', '$', '!']
-vars = []
-asm_code = []  # Список для хранения ассемблерных инструкций
-asm_data = []  # Список для хранения данных
-vars_declared = set()  # Множество для хранения объявленных переменных  
+spec = ['-', '+', '=', '/', '*', '<', '>', '%', '&', '|', ' ', '(', ')', '#', '$', '!']  # все операторы и спецсимволы
+vars = []  # (пока не используется) список переменных
+asm_code = []  # список ассемблерных инструкций для секции .code
+asm_data = []  # список объявлений для секции .data
+vars_declared = set()  # множество объявленных переменных  
 
-label_counter = 0
-if_labels = []  # стек меток конца каждого открытого if
+label_counter = 0  # счётчик для генерации уникальных меток
+if_labels = []  # стек меток для if/else/while блоков
 
-string_counter = 0
+string_counter = 0  # (не используется) счётчик строковых литералов
 
-string_vars = set()   # здесь будем хранить имена переменных-буферов
+string_vars = set()   # множество имён строковых буферов
 
 # Преобразование списка токенов из инфиксной нотации в обратную польскую
-def infix_to_postfix(tokens):
+def infix_to_postfix(tokens):  # переводит инфиксную запись в RPN
     """
     Преобразует список токенов в инфиксной нотации в RPN, 
     поддерживает арифметику и сравнения.
@@ -49,55 +49,55 @@ def infix_to_postfix(tokens):
         '+': 4, '-': 4,
         '*': 5, '/': 5, '%': 5,
     }
-    output = []
-    stack = []
+    output = []  # выходная очередь для RPN
+    stack = []  # стек операторов
 
-    i = 0
-    while i < len(tokens):
-        tok = tokens[i]
+    i = 0  # индекс текущего токена
+    while i < len(tokens):  # пока не дошли до конца списка
+        tok = tokens[i]  # текущий токен
         # Объединяем символы для двухсимвольных операторов
-        if i + 1 < len(tokens) and tok + tokens[i+1] in precedence:
-            tok = tok + tokens[i+1]
-            i += 1  # "съели" второй символ
-        if tok == '(':
-            stack.append(tok)
-        elif tok == ')':
-            while stack and stack[-1] != '(':
-                output.append(stack.pop())
-            stack.pop()  # убрать '('
-        elif tok in precedence:
+        if i + 1 < len(tokens) and tok + tokens[i+1] in precedence:  # если следующий символ формирует оператор
+            tok = tok + tokens[i+1]  # сливаем с ним
+            i += 1  # пропускаем второй символ
+        if tok == '(':  # если открывающая скобка
+            stack.append(tok)  # кладём в стек
+        elif tok == ')':  # если закрывающая скобка
+            while stack and stack[-1] != '(':  # до первой открывающей
+                output.append(stack.pop())  # выталкиваем операторы
+            stack.pop()  # убираем '('
+        elif tok in precedence:  # если оператор
             # выталкиваем операторы с >= приоритетом
             while stack and stack[-1] != '(' and precedence[stack[-1]] >= precedence[tok]:
-                output.append(stack.pop())
-            stack.append(tok)
+                output.append(stack.pop())  # перемещаем из стека в output
+            stack.append(tok)  # затем кладём текущий оператор
         else:
             # операнд
-            output.append(tok)
-        i += 1
+            output.append(tok)  # сразу в output
+        i += 1  # следующий токен
 
     # остаточные операторы
-    while stack:
-        output.append(stack.pop())
+    while stack:  # пока стек не пуст
+        output.append(stack.pop())  # выталкиваем всё в output
 
-    return output
+    return output  # возвращаем RPN токены
 
-def extract_if_condition(tokens):
+def extract_if_condition(tokens):  # извлекает условие из токенов if
     """
     Из списка токенов, начинающихся с 'if', 
     возвращает подсписок токенов условия.
     Например:
       ['if','a','<','b',':','{', ...] → ['a','<','b']
     """
-    assert tokens and tokens[0] == 'if'
+    assert tokens and tokens[0] == 'if'  # убеждаемся, что это if
     # ищем разделитель ':' или конец списка
-    if ':' in tokens:
-        idx = tokens.index(':')
-        return tokens[1:idx]
+    if ':' in tokens:  # если есть ':'
+        idx = tokens.index(':')  # находим его индекс
+        return tokens[1:idx]  # возвращаем всё между if и :
     else:
-        return tokens[1:]
+        return tokens[1:]  # иначе возвращаем всё после if
 
 
-def rpn_to_masm(tokens):
+def rpn_to_masm(tokens):  # переводит RPN токены в MASM инструкции
     """
     Преобразует список токенов в RPN (постфиксная запись) в 
     список строк с MASM-кодом (Irvine32), вычисляющим выражение.
@@ -105,37 +105,37 @@ def rpn_to_masm(tokens):
     tokens: list[str] — RPN-последовательность, например ['a','b','+','a','+']
     return: list[str] — строки с инструкциями
     """
-    asm = []
-    for tok in tokens:
+    asm = []  # накопитель инструкций
+    for tok in tokens:  # для каждого токена
         # Если токен — целое число (литерал)
-        if tok.lstrip('-').isdigit():
-            asm.append(f"    push {tok}")
+        if tok.lstrip('-').isdigit():  
+            asm.append(f"    push {tok}")  # push литерала
         # Иначе — предполагаем, что это имя переменной
         elif tok.isidentifier():
-            asm.append(f"    push DWORD PTR [{tok}]")
+            asm.append(f"    push DWORD PTR [{tok}]")  # push значения переменной
         else:
             # Оператор: достаём два операнда из стека
-            asm.append("    pop ebx")
-            asm.append("    pop eax")
-            if tok == '+':
-                asm.append("    add eax, ebx")
-                asm.append("    push eax")
-            elif tok == '-':
-                asm.append("    sub eax, ebx")
-                asm.append("    push eax")
-            elif tok == '*':
-                asm.append("    imul ebx")    # умножение: EAX *= EBX
-                asm.append("    push eax")
-            elif tok in ('/', '%'):
+            asm.append("    pop ebx")  # pop второй операнд
+            asm.append("    pop eax")  # pop первый операнд
+            if tok == '+':  
+                asm.append("    add eax, ebx")  # складываем
+                asm.append("    push eax")  # push результата
+            elif tok == '-':  
+                asm.append("    sub eax, ebx")  # вычитаем
+                asm.append("    push eax")  # push результата
+            elif tok == '*':  
+                asm.append("    imul ebx")    # умножаем
+                asm.append("    push eax")  # push результата
+            elif tok in ('/', '%'):  
                 asm.append("    cdq")          # расширяем EAX→EDX:EAX
-                asm.append("    idiv ebx")     # делим EDX:EAX на EBX
-                if tok == '/':
-                    asm.append("    push eax")  # деление → в EAX
+                asm.append("    idiv ebx")     # делим на EBX
+                if tok == '/':  
+                    asm.append("    push eax")  # push результата деления
                 else:
-                    asm.append("    push edx")  # остаток → в EDX
+                    asm.append("    push edx")  # push остатка деления
             else:
-                raise ValueError(f"Неизвестный оператор: {tok}")
-    return asm
+                raise ValueError(f"Неизвестный оператор: {tok}")  # неизвестный оператор
+    return asm  # возвращаем список инструкций
 
 # Пример
 # rpn = ['a', 'b', '+', 'a', '+']
@@ -145,28 +145,23 @@ def rpn_to_masm(tokens):
 
 
 
-def ensure_variable(name: str):
+def ensure_variable(name: str):  # объявляет переменную в .data, если ещё не объявлена
     """
     Проверяет, объявлена ли переменная с именем `name`,
     и если нет — добавляет её в vars_declared и в asm_data.
     """
-    if name not in vars_declared:
-        vars_declared.add(name)
-        asm_data.append(f"{name} dd ?")
+    if name not in vars_declared:  # если новой нет в множестве
+        vars_declared.add(name)  # регистрируем её
+        asm_data.append(f"{name} dd ?")  # добавляем объявление
 
-
-
-
-
-
-def new_if_labels():
+def new_if_labels():  # генерирует уникальные метки для блока if…else
     """Собираем уникальные метки для одного if…else…EndIf."""
-    global label_counter
-    L = label_counter
-    label_counter += 1
-    return f"MakeIf{L}", f"MisIfOrMakeElse{L}", f"MisElse{L}"
+    global label_counter  # используем внешний счётчик
+    L = label_counter  # текущий номер
+    label_counter += 1  # увеличиваем счётчик
+    return f"MakeIf{L}", f"MisIfOrMakeElse{L}", f"MisElse{L}"  # возвращаем три метки
 
-def rpn_condition_to_masm(rpn_tokens):
+def rpn_condition_to_masm(rpn_tokens):  # создаёт ASM для RPN-условия
     """
     Превращает RPN-условие вида [..., op] в ASM:
       — арифметика для левого/правого
@@ -174,198 +169,205 @@ def rpn_condition_to_masm(rpn_tokens):
     Возвращает (code_lines, ElseLbl, EndIfLbl).
     """
     # 1) отделяем арифм часть от оператора
-    *arith, op = rpn_tokens
-    code = rpn_to_masm(arith)
+    *arith, op = rpn_tokens  # последний токен — оператор
+    code = rpn_to_masm(arith)  # код арифметики
 
     # 2) выбираем Jcc
-    jm_map = {'<':'jl','<=':'jle','>':'jg','>=':'jge','==':'je','!=':'jne'}
-    jm = jm_map[op]
+    jm_map = {'<':'jl','<=':'jle','>':'jg','>=':'jge','==':'je','!=':'jne'}  # карта переходов
+    jm = jm_map[op]  # нужный переход
 
     # 3) собираем метки
-    then_lbl, else_lbl, endif_lbl = new_if_labels()
+    then_lbl, else_lbl, endif_lbl = new_if_labels()  # получаем метки
 
     # 4) строим код сравнения + переходы
     code += [
-        "    pop ebx",
-        "    pop eax",
-        "    cmp eax, ebx",
-        f"    {jm} {then_lbl}",   # если true → ThenN
-        f"    jmp {else_lbl}",     # иначе → ElseN
-        f"{then_lbl}:",            # вход в then-блок
+        "    pop ebx",  # pop второго операнда
+        "    pop eax",  # pop первого операнда
+        "    cmp eax, ebx",  # сравнение
+        f"    {jm} {then_lbl}",   # если true → then_lbl
+        f"    jmp {else_lbl}",     # иначе → else_lbl
+        f"{then_lbl}:",            # метка then
     ]
-    return code, else_lbl, endif_lbl
+    return code, else_lbl, endif_lbl  # возвращаем код и метки
 
 
 
 
 
-def handle_print(secondSplit):
+def handle_print(secondSplit):  # обрабатывает команду print
     """
     Обрабатывает команду print:
       - print \"...\";         — выводит строковый литерал (с поддержкой \\n и "")
       - print buf;             — выводит содержимое строкового буфера buf
       - print expr;            — выводит число (результат арифм. выражения)
     """
-    rest = secondSplit[1:]
-    first = rest[0]
+    rest = secondSplit[1:]  # аргументы после 'print'
+    first = rest[0]  # первый аргумент
 
     # 1) Строковой литерал в кавычках
-    if first.startswith('"'):
+    if first.startswith('"'):  # если начинается с кавычки
         # собираем весь литерал до закрывающей кавычки
-        parts = []
-        for tok in rest:
-            parts.append(tok)
-            if tok.endswith('"'):
-                break
-        lit = " ".join(parts)
+        parts = []  # буфер токенов литерала
+        for tok in rest:  # пока не встретится конец литерала
+            parts.append(tok)  # добавляем токен
+            if tok.endswith('"'):  # конец литерала
+                break  # выходим из цикла
+        lit = " ".join(parts)  # склеиваем токены
         # удаляем внешние кавычки, обрабатываем ""→" и \"→"
-        content = lit[1:-1].replace('""', '"').replace('\\"', '"')
+        content = lit[1:-1].replace('""', '"').replace('\\"', '"')  # чистим экранирование
 
         # разбиваем по "\n" → вставляем 0Dh,0Ah между сегментами
-        segs = content.split("\\n")
-        data_bytes = []
-        for idx, seg in enumerate(segs):
-            if seg:
-                data_bytes.append(f'"{seg}"')
-            if idx < len(segs) - 1:
-                data_bytes.append("0Dh,0Ah")
-        data_bytes.append("0")  # терминатор
+        segs = content.split("\\n")  # список сегментов по \n
+        data_bytes = []  # байты для .data
+        for idx, seg in enumerate(segs):  # для каждого сегмента
+            if seg:  # если сегмент не пустой
+                data_bytes.append(f'"{seg}"')  # добавляем сегмент
+            if idx < len(segs) - 1:  # если не последний сегмент
+                data_bytes.append("0Dh,0Ah")  # добавляем CR+LF
+        data_bytes.append("0")  # терминатор строки
 
         # создаём метку и объявляем в .data
-        lbl = f"str{len(string_vars)}"
-        string_vars.add(lbl)  # чтобы счётчик был уникален
-        asm_data.append(f"{lbl} BYTE " + ",".join(data_bytes))
+        lbl = f"str{len(string_vars)}"  # уникальная метка
+        string_vars.add(lbl)  # сохраняем имя метки
+        asm_data.append(f"{lbl} BYTE " + ",".join(data_bytes))  # объявление в .data
 
         # в .code — выводим через WriteString
-        asm_code.append(f"    lea   edx, {lbl}")
-        asm_code.append("    call  WriteString")
-        return
+        asm_code.append(f"    lea   edx, {lbl}")  # загружаем адрес метки
+        asm_code.append("    call  WriteString")  # вызываем WriteString
+        return  # выходим из функции
 
     # 2) Это одна переменная — возможно, строка-буфер
-    if len(rest)==1 and rest[0].rstrip(',') in string_vars:
-        var = rest[0].rstrip(',')
-        asm_code.append(f"    lea   edx, {var}")
-        asm_code.append("    call  WriteString")
-        return
+    if len(rest)==1 and rest[0].rstrip(',') in string_vars:  # если имя буфера
+        var = rest[0].rstrip(',')  # очищаем от запятой
+        asm_code.append(f"    lea   edx, {var}")  # загружаем адрес буфера
+        asm_code.append("    call  WriteString")  # выводим буфер
+        return  # выходим из функции
 
     # 3) Всё остальное — арифметическое выражение / число
-    rpn = infix_to_postfix(rest)
-    seq = rpn_to_masm(rpn)
-    asm_code.extend(seq)
-    asm_code.append("    pop   eax")
-    asm_code.append("    call  WriteInt")
+    rpn = infix_to_postfix(rest)  # переводим в RPN
+    seq = rpn_to_masm(rpn)  # генерируем ASM из RPN
+    asm_code.extend(seq)  # добавляем инструкции
+    asm_code.append("    pop   eax")  # pop результата в eax
+    asm_code.append("    call  WriteInt")  # выводим целое
 
 
-def handle_input(secondSplit):
-    rest = secondSplit[1:]
+def handle_input(secondSplit):  # обрабатывает команду input
+    rest = secondSplit[1:]  # аргументы после 'input'
     # всегда «чистим» имя от лишней запятой
-    var_token = rest[0].rstrip(',')
-    if len(rest) == 1:
-        var = var_token
-        if var not in vars_declared:
-            vars_declared.add(var)
-            asm_data.append(f"{var} dd ?")
-        asm_code.append("    call ReadInt")
-        asm_code.append(f"    mov [{var}], eax")
+    var_token = rest[0].rstrip(',')  # имя переменной или буфера
+    if len(rest) == 1:  # если передан только буфер без длины
+        var = var_token  # имя переменной
+        if var not in vars_declared:  # если переменная не объявлена
+            vars_declared.add(var)  # регистрируем её
+            asm_data.append(f"{var} dd ?")  # объявляем в .data как dd
+        asm_code.append("    call ReadInt")  # вызов ReadInt
+        asm_code.append(f"    mov [{var}], eax")  # сохраняем результат
     else:
         # rest = [ "<buf>,", "64" ] → rstrip и на maxlen тоже можно rstrip(',')
-        var = var_token
-        maxlen = int(rest[1].rstrip(','))
-        if var not in vars_declared:
-            vars_declared.add(var)
-            asm_data.append(f"{var} BYTE {maxlen} DUP(0)")
-            string_vars.add(var)
-        asm_code.append(f"    lea   edx, {var}")   # теперь var без запятой
-        asm_code.append(f"    mov   ecx, {maxlen}")
-        asm_code.append("    call ReadString")
+        var = var_token  # имя буфера
+        maxlen = int(rest[1].rstrip(','))  # максимальная длина буфера
+        if var not in vars_declared:  # если буфер не объявлен
+            vars_declared.add(var)  # регистрируем буфер
+            asm_data.append(f"{var} BYTE {maxlen} DUP(0)")  # объявляем массив байт
+            string_vars.add(var)  # сохраняем имя буфера
+        asm_code.append(f"    lea   edx, {var}")   # загружаем адрес буфера
+        asm_code.append(f"    mov   ecx, {maxlen}")  # загружаем длину буфера
+        asm_code.append("    call ReadString")  # вызов ReadString
 
 
 
+for i in firstSplit:  # проходим по списку команд
 
-for i in firstSplit:
+    secondSplit = i.split(" ")  # разбиваем команду на токены
+    
+    print("secondSplit-", secondSplit,"-")  # отладочный вывод токенов
 
-    secondSplit = i.split(" ")
-    print("secondSplit-", secondSplit,"-")
+    if secondSplit[0] == "input":  # если команда input
+        print(secondSplit[0])  # отладка: выявление команды
+        handle_input(secondSplit)  # вызываем обработчик
 
-    if secondSplit[0] == "input":
-        handle_input(secondSplit)
+    elif secondSplit[0] == "print":  # если команда print
+        print(secondSplit[0])  # отладка: выявление команды
+        handle_print(secondSplit)  # вызываем обработчик
 
-    elif secondSplit[0] == "print":
-        handle_print(secondSplit)
-
-    elif secondSplit[0] == "if":
-        cond_tokens = secondSplit[1:secondSplit.index(':')]
-        readiSentence = infix_to_postfix(cond_tokens)
-        ams_if, else_lbl, endif_lbl = rpn_condition_to_masm(readiSentence)
-        asm_code.extend(ams_if)
-        if_labels.append(("if", else_lbl, endif_lbl))
-        continue
+    elif secondSplit[0] == "if":  # если команда if
+        print(secondSplit[0])  # отладка: выявление команды
+        cond_tokens = secondSplit[1:secondSplit.index(':')]  # токены условия
+        readiSentence = infix_to_postfix(cond_tokens)  # RPN условие
+        ams_if, else_lbl, endif_lbl = rpn_condition_to_masm(readiSentence)  # ASM для условия
+        asm_code.extend(ams_if)  # добавляем ASM
+        if_labels.append(("if", else_lbl, endif_lbl))  # сохраняем метки
+        continue  # переходим к следующей команде
 
     # —— Обработка else ——
-    elif secondSplit[0].startswith("}else"):
+    elif secondSplit[0].startswith("}else"):  # если else
+        print(secondSplit[0])  # отладка: выявление else
         # достаём старый if
-        _, old_else, old_end = if_labels.pop()
+        _, old_else, old_end = if_labels.pop()  # получаем старые метки
         # теперь это if-else
-        if_labels.append(("if-else", old_else, old_end))
+        if_labels.append(("if-else", old_else, old_end))  # сохраняем новые метки
         # генерим переход и метку else
-        asm_code.append(f"    jmp {old_end}")
-        asm_code.append(f"{old_else}:")
-        asm_code.append("    ; — теперь идёт else-блок —")
-        continue
+        asm_code.append(f"    jmp {old_end}")  # переход к концу if
+        asm_code.append(f"{old_else}:")  # метка начала else
+        asm_code.append("    ; — теперь идёт else-блок —")  # комментарий блока
+        continue  # далее
 
     # —— Обработка while (как «зацикленный if») ——
-    elif secondSplit[0] == "while":
-        cond_tokens = secondSplit[1:secondSplit.index(':')]
-        rpn = infix_to_postfix(cond_tokens)
-        *arith, op = rpn
-        L = label_counter; label_counter += 1
-        loop_lbl = f"Loop{L}"
-        end_lbl  = f"EndLoop{L}"
+    elif secondSplit[0] == "while":  # если while
+        print(secondSplit[0])  # отладка: выявление while
+        cond_tokens = secondSplit[1:secondSplit.index(':')]  # токены условия
+        rpn = infix_to_postfix(cond_tokens)  # RPN условие
+        *arith, op = rpn  # арифм. часть и оператор
+        L = label_counter; label_counter += 1  # генерируем новую метку
+        loop_lbl = f"Loop{L}"  # метка начала цикла
+        end_lbl  = f"EndLoop{L}"  # метка конца цикла
 
-        asm_code.append(f"{loop_lbl}:")
-        asm_code.extend(rpn_to_masm(arith))
+        asm_code.append(f"{loop_lbl}:")  # вставляем метку начала
+        asm_code.extend(rpn_to_masm(arith))  # код для проверяемого выражения
         asm_code += [
-            "    pop ebx",
-            "    pop eax",
-            "    cmp eax, ebx",
+            "    pop ebx",  # pop второго операнда
+            "    pop eax",  # pop первого операнда
+            "    cmp eax, ebx",  # сравнение
             {
-                '<':'jge', '<=':'jg',
+                '<':'jge', '<=':'jg',  # карты переходов
                 '>':'jle', '>=':'jl',
                 '==':'jne', '!=':'je'
-            }[op] + f" {end_lbl}"
+            }[op] + f" {end_lbl}"  # условный переход
         ]
-        if_labels.append(("while", loop_lbl, end_lbl))
-        continue
+        if_labels.append(("while", loop_lbl, end_lbl))  # сохраняем метки
+        continue  # дальше
 
     # —— Закрывающий блок ——
-    elif secondSplit[0] == "}":
-        if not if_labels:
-            continue
-        typ, a, b = if_labels.pop()
-        if typ == "while":
-            asm_code.append(f"    jmp   {a}")
-            asm_code.append(f"{b}:")
-        elif typ == "if":
-            asm_code.append(f"{b}:")
-            asm_code.append("    ; — конец блока if без else —")
+    elif secondSplit[0] == "}":  # если закрытие блока
+        print(secondSplit[0])  # отладка: закрылся блок
+        if not if_labels:  # если стек пуст
+            continue  # ничего не делаем
+        typ, a, b = if_labels.pop()  # извлекаем метки
+        if typ == "while":  # если это цикл
+            asm_code.append(f"    jmp   {a}")  # переход к началу
+            asm_code.append(f"{b}:")  # метка конца цикла
+        elif typ == "if":  # если одинарный if
+            asm_code.append(f"{a}:")  # метка конца if
+            asm_code.append("    ; — конец блока if без else —")  # комментарий
         else:  # if-else
-            asm_code.append(f"{b}:")
-            asm_code.append("    ; — конец блока if/else —")
-        continue
+            asm_code.append(f"{b}:")  # метка конца else
+            asm_code.append("    ; — конец блока if/else —")  # комментарий
+        continue  # дальше
             
     else:
-        if (len(secondSplit) < 3):   # если строка пустая, пропускаем
-            continue
-        elif (secondSplit[1] == "="):
-            readiSentence = infix_to_postfix(secondSplit[2:])
-            print("readiSentence ", readiSentence)
-            masmCode =rpn_to_masm(readiSentence)
-            print("masmCode ", '\n'.join(masmCode))
-            asm_code.extend(masmCode)
+        if (len(secondSplit) < 3):   # если строка пустая или слишком короткая
+            continue  # пропускаем
+        elif (secondSplit[1] == "="):  # если присваивание
+            print(secondSplit[0])  # отладка: имя переменной
+            readiSentence = infix_to_postfix(secondSplit[2:])  # RPN правой части
+            print("readiSentence ", readiSentence)  # вывод RPN
+            masmCode =rpn_to_masm(readiSentence)  # ASM из RPN
+            print("masmCode ", '\n'.join(masmCode))  # отладка ASM
+            asm_code.extend(masmCode)  # добавляем ASM инструкции
             # сохраняем результат: pop eax; mov [target], eax
-            ensure_variable(secondSplit[0])
-            asm_code.append("    pop eax")
-            asm_code.append(f"    mov [{secondSplit[0]}], eax")
+            ensure_variable(secondSplit[0])  # объявляем переменную, если надо
+            asm_code.append("    pop eax")  # pop результата
+            asm_code.append(f"    mov [{secondSplit[0]}], eax")  # mov обратно в память
             asm_code.append("")  # пустая строка для читабельности
 
 
@@ -386,18 +388,17 @@ for i in firstSplit:
 
 
 # Запись итогового ассемблерного кода в файл
-with open("work/out2.asm","w") as f: # открываем файл для записи
+with open("work/out7.asm","w") as f:  # открываем файл вывода
     f.write("""INCLUDE Irvine32.inc
 
-.data\n""") # пишем заголовок и секцию данных
-    f.write("\n".join(asm_data))   # пишем объявления переменных
+.data\n""")  # пишем заголовок и секцию данных
+    f.write("\n".join(asm_data))   # записываем объявления переменных
     f.write("""
 .code
-main PROC\n""") # пишем секцию кода и начало main
-    f.write("\n".join(asm_code))   # пишем сгенерированный код
+main PROC\n""")  # пишем начало секции .code и main
+    f.write("\n".join(asm_code))   # записываем все инструкции
     f.write("""
 exit\t 
 main ENDP
 END main
-""") # пишем завершение программы
-
+""")  # пишем завершение программы
